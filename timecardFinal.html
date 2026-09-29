@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timecard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.13.2/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.13.2/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.13.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --paper:#EFEDE5;
+    --paper-raised:#F8F6F0;
+    --ink:#20261E;
+    --ink-soft:#5C6358;
+    --ink-faint:#8B9184;
+    --brass:#A9762F;
+    --brass-deep:#7E5A25;
+    --forest:#36543E;
+    --forest-deep:#294331;
+    --line:#D7D2C1;
+    --line-soft:#E4E0D3;
+    --white:#FFFFFF;
+    --alert:#9C4331;
+    --alert-bg:#F3E1DA;
+    --shadow: 0 1px 2px rgba(32,38,30,0.06), 0 4px 14px rgba(32,38,30,0.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#181D17;
+      --paper-raised:#20261E;
+      --ink:#EDEAE0;
+      --ink-soft:#AEB2A5;
+      --ink-faint:#767C6E;
+      --brass:#D8A24F;
+      --brass-deep:#E7B968;
+      --forest:#6FA57F;
+      --forest-deep:#8CC29A;
+      --line:#343B31;
+      --line-soft:#2A3026;
+      --white:#20261E;
+      --alert:#E28066;
+      --alert-bg:#3A2621;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.25);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#181D17;
+    --paper-raised:#20261E;
+    --ink:#EDEAE0;
+    --ink-soft:#AEB2A5;
+    --ink-faint:#767C6E;
+    --brass:#D8A24F;
+    --brass-deep:#E7B968;
+    --forest:#6FA57F;
+    --forest-deep:#8CC29A;
+    --line:#343B31;
+    --line-soft:#2A3026;
+    --white:#20261E;
+    --alert:#E28066;
+    --alert-bg:#3A2621;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.25);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 60px;}
+
+  header.top{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:16px;margin-bottom:14px;
+    flex-wrap:wrap;gap:14px;
+  }
+  .brand{display:flex;flex-direction:column;gap:2px;}
+  .brand .mark{font-family:'Fraunces',serif;font-weight:600;font-size:28px;letter-spacing:-0.01em;}
+  .brand .sub{color:var(--ink-soft);font-size:13px;}
+  .live-clock{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:500;letter-spacing:0.02em;text-align:right;}
+  .live-date{color:var(--ink-soft);font-size:13px;text-align:right;margin-top:2px;}
+
+  .conn-bar{
+    display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);
+    margin-bottom:20px;
+  }
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--ink-faint);flex:none;}
+  .conn-dot.ok{background:var(--forest);}
+  .conn-dot.err{background:var(--alert);}
+  .conn-bar button{
+    background:none;border:none;color:var(--brass);font-size:12.5px;cursor:pointer;
+    text-decoration:underline;padding:0;margin-left:auto;font-family:'Inter',sans-serif;
+  }
+
+  nav.tabs{display:flex;gap:4px;margin-bottom:26px;border-bottom:1px solid var(--line);overflow-x:auto;}
+  nav.tabs button{
+    font-family:'Inter',sans-serif;font-size:14px;font-weight:600;background:none;border:none;
+    color:var(--ink-soft);padding:10px 4px;margin-right:22px;cursor:pointer;
+    border-bottom:2px solid transparent;white-space:nowrap;
+  }
+  nav.tabs button.active{color:var(--ink);border-bottom-color:var(--brass);}
+  nav.tabs button:hover{color:var(--ink);}
+  nav.tabs button:disabled{color:var(--ink-faint);cursor:not-allowed;}
+
+  section.view{display:none;}
+  section.view.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+  h2.view-title{font-family:'Fraunces',serif;font-weight:500;font-size:20px;margin:0 0 16px;}
+  p.lede{color:var(--ink-soft);font-size:14px;line-height:1.6;max-width:60ch;margin:-6px 0 20px;}
+
+  .roster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}
+  .punch-card{
+    background:var(--paper-raised);border:1px solid var(--line);border-radius:3px;
+    padding:16px 16px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;
+  }
+  .punch-card .name{font-family:'Fraunces',serif;font-size:17px;font-weight:500;}
+  .punch-card .role{color:var(--ink-faint);font-size:12px;margin-top:-8px;}
+  .status-row{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-soft);}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-faint);flex:none;}
+  .dot.in{background:var(--forest);}
+  .elapsed{font-family:'IBM Plex Mono',monospace;font-size:19px;color:var(--forest);}
+  .punch-btn{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;padding:9px 10px;
+    border-radius:3px;border:1px solid transparent;cursor:pointer;margin-top:2px;
+  }
+  .punch-btn.go{background:var(--forest);color:var(--white);}
+  .punch-btn.go:hover{background:var(--forest-deep);}
+  .punch-btn.stop{background:transparent;color:var(--alert);border-color:var(--alert);}
+  .punch-btn.stop:hover{background:var(--alert-bg);}
+  .empty-note{color:var(--ink-faint);font-size:14px;padding:30px 0;text-align:center;}
+
+  .add-form{
+    display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;
+    background:var(--paper-raised);border:1px solid var(--line);border-radius:3px;
+    padding:14px;margin-bottom:20px;
+  }
+  .field{display:flex;flex-direction:column;gap:4px;}
+  .field label{font-size:11.5px;color:var(--ink-soft);font-weight:600;}
+  .field input, .field select{
+    font-family:'Inter',sans-serif;font-size:14px;padding:7px 9px;
+    border:1px solid var(--line);border-radius:3px;background:var(--white);color:var(--ink);min-width:120px;
+  }
+  .field input:focus, .field select:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  .btn{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;padding:8px 14px;
+    border-radius:3px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;
+  }
+  .btn:hover{opacity:0.85;}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .btn.ghost{background:transparent;color:var(--ink-soft);border-color:var(--line);font-weight:500;}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  thead th{text-align:left;font-size:11.5px;color:var(--ink-soft);font-weight:600;padding:0 10px 8px;border-bottom:1px solid var(--line);}
+  tbody td{padding:10px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle;}
+  tbody tr:hover{background:var(--paper-raised);}
+  td.num, th.num{text-align:right;font-family:'IBM Plex Mono',monospace;}
+  .row-actions{display:flex;gap:8px;}
+  .link-btn{background:none;border:none;color:var(--ink-soft);font-size:12.5px;cursor:pointer;text-decoration:underline;padding:0;font-family:'Inter',sans-serif;}
+  .link-btn:hover{color:var(--alert);}
+  .table-wrap{overflow-x:auto;background:var(--paper-raised);border:1px solid var(--line);border-radius:3px;padding:4px 10px;}
+
+  .ts-controls{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+  .week-nav{display:flex;align-items:center;gap:10px;}
+  .week-nav button{background:var(--paper-raised);border:1px solid var(--line);border-radius:3px;width:30px;height:30px;cursor:pointer;color:var(--ink);font-size:15px;}
+  .week-label{font-family:'IBM Plex Mono',monospace;font-size:13.5px;color:var(--ink-soft);}
+
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;}
+  .stat{background:var(--paper-raised);border:1px solid var(--line);border-radius:3px;padding:14px 16px;}
+  .stat .num{font-family:'IBM Plex Mono',monospace;font-size:24px;color:var(--brass);}
+  .stat .label{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .overtime-flag{color:var(--alert);font-weight:600;font-size:12px;}
+
+  footer.note{margin-top:34px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:12px;}
+
+  /* setup panel */
+  .setup-box{
+    background:var(--paper-raised);border:1px solid var(--line);border-radius:4px;
+    padding:22px;max-width:560px;
+  }
+  .setup-box h3{font-family:'Fraunces',serif;font-weight:500;font-size:16px;margin:0 0 4px;}
+  .setup-box .step-num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:18px;height:18px;border-radius:50%;background:var(--brass);color:var(--white);
+    font-size:11px;font-weight:700;margin-right:7px;
+  }
+  .setup-steps{list-style:none;margin:0 0 20px;padding:0;display:flex;flex-direction:column;gap:9px;}
+  .setup-steps li{font-size:13.5px;color:var(--ink-soft);line-height:1.5;}
+  .setup-steps code{background:var(--line-soft);padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink);}
+  .config-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+  .config-grid .field{min-width:0;}
+  .config-grid input{width:100%;}
+  .config-grid .field.full{grid-column:1 / -1;}
+  .setup-msg{font-size:13px;margin-top:12px;min-height:18px;}
+  .setup-msg.err{color:var(--alert);}
+  .setup-msg.ok{color:var(--forest);}
+  details.rules{margin-top:18px;font-size:13px;color:var(--ink-soft);}
+  details.rules summary{cursor:pointer;font-weight:600;color:var(--ink);}
+  details.rules pre{
+    background:var(--line-soft);padding:10px 12px;border-radius:3px;overflow-x:auto;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;margin-top:8px;color:var(--ink);
+  }
+
+  @media (max-width:560px){
+    .live-clock{font-size:20px;}
+    header.top{align-items:flex-start;}
+    .config-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="mark">Timecard</div>
+      <div class="sub">Employee time tracking</div>
+    </div>
+    <div>
+      <div class="live-clock" id="liveClock">--:--:--</div>
+      <div class="live-date" id="liveDate"></div>
+    </div>
+  </header>
+
+  <div class="conn-bar">
+    <span class="conn-dot" id="connDot"></span>
+    <span id="connText">Not connected</span>
+    <button id="connChange" style="display:none;">Change project</button>
+  </div>
+
+  <nav class="tabs">
+    <button data-view="setup" class="active">Setup</button>
+    <button data-view="clock" disabled>Clock</button>
+    <button data-view="roster" disabled>Roster</button>
+    <button data-view="timesheets" disabled>Timesheets</button>
+    <button data-view="reports" disabled>Reports</button>
+  </nav>
+
+  <!-- SETUP -->
+  <section class="view active" id="view-setup">
+    
+
+      <form id="setupForm">
+        <div class="config-grid">
+          <div class="field full"><label for="cfgApiKey">API key</label><input id="cfgApiKey"  value="AIzaSyDWEKNjSlM1IKxkzSofvBJ0Mb0ctmVtEVo"></div>
+          <div class="field"><label for="cfgProjectId">Project ID</label><input id="cfgProjectId" value="scouting-hours"></div>
+          <div class="field"><label for="cfgAppId">App ID</label><input id="cfgAppId" value="1:356390069521:web:0f75ee1b26a807144598b0"></div>
+          <div class="field"><label for="cfgAuthDomain">Auth domain</label><input id="cfgAuthDomain" value="scouting-hours.firebaseapp.com"></div>
+          <div class="field"><label for="cfgSenderId">Messaging sender ID</label><input id="cfgSenderId" value="356390069521"></div>
+        </div>
+        <button type="submit" class="btn" id="connectBtn">Connect</button>
+        <div class="setup-msg" id="setupMsg"></div>
+      </form>
+
+      <details class="rules">
+        <summary>Firestore security rules (paste into Firestore → Rules)</summary>
+        <pre id="rulesText">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}</pre>
+      </details>
+    </div>
+  </section>
+
+  <!-- CLOCK -->
+  <section class="view" id="view-clock">
+    <h2 class="view-title">Punch clock</h2>
+    <div class="roster-grid" id="clockGrid"></div>
+    <div class="empty-note" id="clockEmpty" style="display:none;">No employees yet. Add someone in the Roster tab.</div>
+  </section>
+
+  <!-- ROSTER -->
+  <section class="view" id="view-roster">
+    <h2 class="view-title">Roster</h2>
+    <form class="add-form" id="addEmployeeForm">
+      <div class="field">
+        <label for="empName">Name</label>
+        <input type="text" id="empName" placeholder="Jane Diaz" required>
+      </div>
+      <div class="field">
+        <label for="empRole">Role</label>
+        <input type="text" id="empRole" placeholder="Cashier">
+      </div>
+      <button type="submit" class="btn">Add employee</button>
+    </form>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Role</th><th></th></tr></thead>
+        <tbody id="rosterBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-note" id="rosterEmpty" style="display:none;">Your roster is empty. Add your first employee above.</div>
+  </section>
+
+  <!-- TIMESHEETS -->
+  <section class="view" id="view-timesheets">
+    <h2 class="view-title">Timesheets</h2>
+    <div class="ts-controls">
+      <div class="field" style="min-width:180px;">
+        <label for="tsEmployee">Employee</label>
+        <select id="tsEmployee"></select>
+      </div>
+      <div class="week-nav">
+        <button id="weekPrev" aria-label="Previous week">‹</button>
+        <span class="week-label" id="weekLabel"></span>
+        <button id="weekNext" aria-label="Next week">›</button>
+      </div>
+    </div>
+
+    <form class="add-form" id="addEntryForm">
+      <div class="field"><label for="entryDate">Date</label><input type="date" id="entryDate" required></div>
+      <div class="field"><label for="entryIn">Clock in</label><input type="time" id="entryIn" required></div>
+      <div class="field"><label for="entryOut">Clock out</label><input type="time" id="entryOut" required></div>
+      <button type="submit" class="btn">Add entry</button>
+    </form>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>In</th><th>Out</th><th class="num">Hours</th><th></th></tr></thead>
+        <tbody id="entriesBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-note" id="entriesEmpty" style="display:none;">No entries this week.</div>
+  </section>
+
+  <!-- REPORTS -->
+  <section class="view" id="view-reports">
+    <h2 class="view-title">Weekly report</h2>
+    <div class="ts-controls">
+      <span class="week-label" id="reportWeekLabel"></span>
+      <div class="week-nav">
+        <button id="reportWeekPrev" aria-label="Previous week">‹</button>
+        <button id="reportWeekNext" aria-label="Next week">›</button>
+      </div>
+    </div>
+    <div class="summary-grid" id="summaryGrid"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Employee</th><th class="num">Hours</th><th></th></tr></thead>
+        <tbody id="reportBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-note" id="reportEmpty" style="display:none;">Add employees and time entries to see a report.</div>
+  </section>
+
+  <footer class="note">Data lives in the Firestore database of the Firebase project you connect above — enter the same project's config on every device to see the same roster and timesheets everywhere.</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var CONFIG_KEY = "timecard.firebaseConfig";
+  var state = { employees: [], entries: [], sessions: {} };
+  // employees: [{id,name,role}]
+  // entries: [{id,employeeId,date,inTime,outTime}]
+  // sessions: { employeeId: startMs }
+
+  var db = null, auth = null, connected = false;
+  var unsubEmp = null, unsubEntries = null, unsubSessions = null;
+
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  // ---------- live clock ----------
+  function tickClock(){
+    var now = new Date();
+    document.getElementById("liveClock").textContent = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    document.getElementById("liveDate").textContent = now.toLocaleDateString([], {weekday:'long', month:'long', day:'numeric'});
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  // ---------- tabs ----------
+  var tabButtons = document.querySelectorAll("nav.tabs button");
+  tabButtons.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      if(btn.disabled) return;
+      tabButtons.forEach(function(b){ b.classList.remove("active"); });
+      document.querySelectorAll("section.view").forEach(function(v){ v.classList.remove("active"); });
+      btn.classList.add("active");
+      document.getElementById("view-" + btn.dataset.view).classList.add("active");
+      if(btn.dataset.view === "timesheets") renderTimesheet();
+      if(btn.dataset.view === "reports") renderReport();
+      if(btn.dataset.view === "clock") renderClock();
+      if(btn.dataset.view === "roster") renderRoster();
+    });
+  });
+  function setTabsEnabled(enabled){
+    tabButtons.forEach(function(b){
+      if(b.dataset.view !== "setup") b.disabled = !enabled;
+    });
+  }
+  function goToTab(view){
+    var btn = document.querySelector("nav.tabs button[data-view='" + view + "']");
+    if(btn && !btn.disabled) btn.click();
+  }
+
+  // ---------- connection status ----------
+  function setStatus(text, kind){
+    document.getElementById("connText").textContent = text;
+    var dot = document.getElementById("connDot");
+    dot.className = "conn-dot" + (kind ? " " + kind : "");
+  }
+
+  // ---------- date helpers ----------
+  function pad(n){ return n<10 ? "0"+n : ""+n; }
+  function toDateStr(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+  function startOfWeek(d){
+    var date = new Date(d);
+    var day = date.getDay();
+    date.setDate(date.getDate() - day);
+    date.setHours(0,0,0,0);
+    return date;
+  }
+  function addDays(d, n){ var r = new Date(d); r.setDate(r.getDate()+n); return r; }
+  function fmtRange(startDate){
+    var end = addDays(startDate, 6);
+    var opts = {month:'short', day:'numeric'};
+    return startDate.toLocaleDateString([], opts) + " – " + end.toLocaleDateString([], opts) + ", " + end.getFullYear();
+  }
+  function hoursBetween(inTime, outTime){
+    var a = inTime.split(":"), b = outTime.split(":");
+    var startMin = (+a[0])*60 + (+a[1]);
+    var endMin = (+b[0])*60 + (+b[1]);
+    var diff = endMin - startMin;
+    if(diff < 0) diff += 24*60;
+    return diff/60;
+  }
+  function fmtHours(h){ return h.toFixed(2); }
+
+  var tsWeekStart = startOfWeek(new Date());
+  var reportWeekStart = startOfWeek(new Date());
+
+  // ============ FIREBASE CONNECTION ============
+  function loadSavedConfig(){
+    try{
+      var raw = localStorage.getItem(CONFIG_KEY);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  }
+  function saveConfig(cfg){
+    try{ localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); }catch(e){}
+  }
+  function clearConfig(){
+    try{ localStorage.removeItem(CONFIG_KEY); }catch(e){}
+  }
+
+  function fillFormFromConfig(cfg){
+    document.getElementById("cfgApiKey").value = cfg.apiKey || "";
+    document.getElementById("cfgProjectId").value = cfg.projectId || "";
+    document.getElementById("cfgAppId").value = cfg.appId || "";
+    document.getElementById("cfgAuthDomain").value = cfg.authDomain || "";
+    document.getElementById("cfgSenderId").value = cfg.messagingSenderId || "";
+  }
+
+  function connect(cfg, isRetry){
+    var msg = document.getElementById("setupMsg");
+    msg.className = "setup-msg";
+    msg.textContent = "Connecting…";
+    setStatus("Connecting…", "");
+
+    try{
+      if(firebase.apps && firebase.apps.length){
+        firebase.apps.slice().forEach(function(a){ a.delete(); });
+      }
+      var app = firebase.initializeApp(cfg);
+      auth = firebase.auth(app);
+      db = firebase.firestore(app);
+
+      auth.signInAnonymously().then(function(){
+        connected = true;
+        saveConfig(cfg);
+        msg.className = "setup-msg ok";
+        msg.textContent = "Connected.";
+        setStatus("Connected — " + cfg.projectId, "ok");
+        document.getElementById("connChange").style.display = "inline";
+        setTabsEnabled(true);
+        subscribeAll();
+        if(!isRetry) goToTab("clock");
+      }).catch(function(err){
+        handleConnError(err);
+      });
+    }catch(err){
+      handleConnError(err);
+    }
+  }
+
+  function handleConnError(err){
+    connected = false;
+    setTabsEnabled(false);
+    var msg = document.getElementById("setupMsg");
+    msg.className = "setup-msg err";
+    var friendly = err && err.message ? err.message : "Could not connect.";
+    if(err && err.code === "auth/configuration-not-found"){
+      friendly = "Anonymous sign-in isn't enabled yet. In Firebase Console → Authentication → Sign-in method, enable Anonymous, then try again.";
+    } else if(err && err.code === "auth/invalid-api-key"){
+      friendly = "That API key doesn't look right. Double check it against Project settings → Your apps.";
+    }
+    msg.textContent = friendly;
+    setStatus("Not connected", "err");
+  }
+
+  document.getElementById("setupForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var cfg = {
+      apiKey: document.getElementById("cfgApiKey").value.trim(),
+      projectId: document.getElementById("cfgProjectId").value.trim(),
+      appId: document.getElementById("cfgAppId").value.trim(),
+      authDomain: document.getElementById("cfgAuthDomain").value.trim() || (document.getElementById("cfgProjectId").value.trim() + ".firebaseapp.com"),
+      messagingSenderId: document.getElementById("cfgSenderId").value.trim()
+    };
+    connect(cfg, false);
+  });
+
+  document.getElementById("connChange").addEventListener("click", function(){
+    unsubscribeAll();
+    connected = false;
+    clearConfig();
+    setTabsEnabled(false);
+    document.getElementById("connChange").style.display = "none";
+    setStatus("Not connected", "");
+    document.getElementById("setupMsg").textContent = "";
+    state = { employees: [], entries: [], sessions: {} };
+    goToTab("setup");
+  });
+
+  // try auto-connect on load
+  var saved = loadSavedConfig();
+  if(saved){
+    fillFormFromConfig(saved);
+    connect(saved, true);
+  }
+
+  // ============ FIRESTORE SYNC ============
+  function subscribeAll(){
+    unsubscribeAll();
+    unsubEmp = db.collection("employees").onSnapshot(function(snap){
+      state.employees = [];
+      snap.forEach(function(doc){ state.employees.push(Object.assign({id: doc.id}, doc.data())); });
+      state.employees.sort(function(a,b){ return (a.name||"").localeCompare(b.name||""); });
+      renderRoster(); renderClock(); populateEmployeeSelect(); renderTimesheet(); renderReport();
+    }, function(err){ handleSyncError(err); });
+
+    unsubEntries = db.collection("entries").onSnapshot(function(snap){
+      state.entries = [];
+      snap.forEach(function(doc){ state.entries.push(Object.assign({id: doc.id}, doc.data())); });
+      renderTimesheet(); renderReport();
+    }, function(err){ handleSyncError(err); });
+
+    unsubSessions = db.collection("sessions").onSnapshot(function(snap){
+      state.sessions = {};
+      snap.forEach(function(doc){ state.sessions[doc.id] = doc.data().start; });
+      renderClock();
+    }, function(err){ handleSyncError(err); });
+  }
+  function unsubscribeAll(){
+    if(unsubEmp) unsubEmp();
+    if(unsubEntries) unsubEntries();
+    if(unsubSessions) unsubSessions();
+    unsubEmp = unsubEntries = unsubSessions = null;
+  }
+  function handleSyncError(err){
+    setStatus("Sync error — check Firestore rules", "err");
+    console.warn("Firestore sync error", err);
+  }
+
+  // ---------- ROSTER ----------
+  document.getElementById("addEmployeeForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    if(!connected) return;
+    var name = document.getElementById("empName").value.trim();
+    if(!name) return;
+    var role = document.getElementById("empRole").value.trim();
+    db.collection("employees").add({ name: name, role: role }).catch(handleSyncError);
+    this.reset();
+  });
+
+  function removeEmployee(id){
+    if(!connected) return;
+    db.collection("employees").doc(id).delete().catch(handleSyncError);
+    db.collection("sessions").doc(id).delete().catch(function(){});
+    state.entries.filter(function(e){ return e.employeeId === id; }).forEach(function(e){
+      db.collection("entries").doc(e.id).delete().catch(function(){});
+    });
+  }
+
+  function renderRoster(){
+    var body = document.getElementById("rosterBody");
+    body.innerHTML = "";
+    document.getElementById("rosterEmpty").style.display = state.employees.length ? "none" : "block";
+    state.employees.forEach(function(emp){
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(emp.name) + "</td>" +
+        "<td>" + escapeHtml(emp.role || "—") + "</td>" +
+        "<td class='row-actions'></td>";
+      var actionsTd = tr.querySelector(".row-actions");
+      var delBtn = document.createElement("button");
+      delBtn.className = "link-btn";
+      delBtn.textContent = "Remove";
+      delBtn.addEventListener("click", function(){ removeEmployee(emp.id); });
+      actionsTd.appendChild(delBtn);
+      body.appendChild(tr);
+    });
+  }
+
+  // ---------- CLOCK ----------
+  function renderClock(){
+    var grid = document.getElementById("clockGrid");
+    grid.innerHTML = "";
+    document.getElementById("clockEmpty").style.display = state.employees.length ? "none" : "block";
+    state.employees.forEach(function(emp){
+      var isIn = !!state.sessions[emp.id];
+      var card = document.createElement("div");
+      card.className = "punch-card";
+      card.innerHTML =
+        "<div class='name'>" + escapeHtml(emp.name) + "</div>" +
+        (emp.role ? "<div class='role'>" + escapeHtml(emp.role) + "</div>" : "") +
+        "<div class='status-row'><span class='dot " + (isIn ? "in" : "") + "'></span><span>" + (isIn ? "Clocked in" : "Clocked out") + "</span></div>" +
+        (isIn ? "<div class='elapsed' data-start='" + state.sessions[emp.id] + "'>00:00:00</div>" : "") +
+        "<button class='punch-btn " + (isIn ? "stop" : "go") + "' data-id='" + emp.id + "'>" + (isIn ? "Clock out" : "Clock in") + "</button>";
+      var btn = card.querySelector(".punch-btn");
+      btn.addEventListener("click", function(){ togglePunch(emp.id); });
+      grid.appendChild(card);
+    });
+  }
+
+  function togglePunch(empId){
+    if(!connected) return;
+    if(state.sessions[empId]){
+      var startMs = state.sessions[empId];
+      var endDate = new Date();
+      var startDate = new Date(startMs);
+      db.collection("entries").add({
+        employeeId: empId,
+        date: toDateStr(startDate),
+        inTime: pad(startDate.getHours()) + ":" + pad(startDate.getMinutes()),
+        outTime: pad(endDate.getHours()) + ":" + pad(endDate.getMinutes())
+      }).catch(handleSyncError);
+      db.collection("sessions").doc(empId).delete().catch(handleSyncError);
+    } else {
+      db.collection("sessions").doc(empId).set({ start: Date.now() }).catch(handleSyncError);
+    }
+  }
+
+  function tickElapsed(){
+    document.querySelectorAll(".elapsed").forEach(function(el){
+      var start = +el.dataset.start;
+      var diff = Math.max(0, Date.now() - start);
+      var h = Math.floor(diff/3600000);
+      var m = Math.floor((diff%3600000)/60000);
+      var s = Math.floor((diff%60000)/1000);
+      el.textContent = pad(h) + ":" + pad(m) + ":" + pad(s);
+    });
+  }
+  setInterval(tickElapsed, 1000);
+
+  // ---------- TIMESHEETS ----------
+  function populateEmployeeSelect(){
+    var sel = document.getElementById("tsEmployee");
+    var prev = sel.value;
+    sel.innerHTML = "";
+    if(!state.employees.length){
+      var opt = document.createElement("option");
+      opt.textContent = "No employees yet";
+      opt.value = "";
+      sel.appendChild(opt);
+      return;
+    }
+    state.employees.forEach(function(emp){
+      var opt = document.createElement("option");
+      opt.value = emp.id;
+      opt.textContent = emp.name;
+      sel.appendChild(opt);
+    });
+    if(prev && state.employees.some(function(e){return e.id===prev;})) sel.value = prev;
+  }
+
+  document.getElementById("tsEmployee").addEventListener("change", renderTimesheet);
+  document.getElementById("weekPrev").addEventListener("click", function(){ tsWeekStart = addDays(tsWeekStart,-7); renderTimesheet(); });
+  document.getElementById("weekNext").addEventListener("click", function(){ tsWeekStart = addDays(tsWeekStart,7); renderTimesheet(); });
+
+  document.getElementById("addEntryForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    if(!connected) return;
+    var empId = document.getElementById("tsEmployee").value;
+    if(!empId) return;
+    var date = document.getElementById("entryDate").value;
+    var inTime = document.getElementById("entryIn").value;
+    var outTime = document.getElementById("entryOut").value;
+    if(!date || !inTime || !outTime) return;
+    db.collection("entries").add({ employeeId: empId, date: date, inTime: inTime, outTime: outTime }).catch(handleSyncError);
+    this.reset();
+  });
+
+  function removeEntry(id){
+    if(!connected) return;
+    db.collection("entries").doc(id).delete().catch(handleSyncError);
+  }
+
+  function renderTimesheet(){
+    populateEmployeeSelect();
+    document.getElementById("weekLabel").textContent = fmtRange(tsWeekStart);
+    var empId = document.getElementById("tsEmployee").value;
+    var weekEnd = addDays(tsWeekStart, 7);
+    var body = document.getElementById("entriesBody");
+    body.innerHTML = "";
+    var rows = state.entries.filter(function(e){
+      if(e.employeeId !== empId) return false;
+      var d = new Date(e.date + "T00:00:00");
+      return d >= tsWeekStart && d < weekEnd;
+    }).sort(function(a,b){ return a.date.localeCompare(b.date); });
+
+    document.getElementById("entriesEmpty").style.display = rows.length ? "none" : "block";
+
+    rows.forEach(function(entry){
+      var hrs = hoursBetween(entry.inTime, entry.outTime);
+      var tr = document.createElement("tr");
+      var dateDisp = new Date(entry.date + "T00:00:00").toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'});
+      tr.innerHTML =
+        "<td>" + dateDisp + "</td>" +
+        "<td>" + entry.inTime + "</td>" +
+        "<td>" + entry.outTime + "</td>" +
+        "<td class='num'>" + fmtHours(hrs) + "</td>" +
+        "<td class='row-actions'></td>";
+      var actionsTd = tr.querySelector(".row-actions");
+      var delBtn = document.createElement("button");
+      delBtn.className = "link-btn";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", function(){ removeEntry(entry.id); });
+      actionsTd.appendChild(delBtn);
+      body.appendChild(tr);
+    });
+  }
+
+  // ---------- REPORTS ----------
+  document.getElementById("reportWeekPrev").addEventListener("click", function(){ reportWeekStart = addDays(reportWeekStart,-7); renderReport(); });
+  document.getElementById("reportWeekNext").addEventListener("click", function(){ reportWeekStart = addDays(reportWeekStart,7); renderReport(); });
+
+  function renderReport(){
+    document.getElementById("reportWeekLabel").textContent = fmtRange(reportWeekStart);
+    var weekEnd = addDays(reportWeekStart, 7);
+    var body = document.getElementById("reportBody");
+    body.innerHTML = "";
+    document.getElementById("reportEmpty").style.display = state.employees.length ? "none" : "block";
+
+    var totalHours = 0, overtimeCount = 0;
+
+    state.employees.forEach(function(emp){
+      var entries = state.entries.filter(function(e){
+        if(e.employeeId !== emp.id) return false;
+        var d = new Date(e.date + "T00:00:00");
+        return d >= reportWeekStart && d < weekEnd;
+      });
+      var hrs = entries.reduce(function(sum,e){ return sum + hoursBetween(e.inTime, e.outTime); }, 0);
+      var isOT = hrs > 40;
+      if(isOT) overtimeCount++;
+      totalHours += hrs;
+
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(emp.name) + (isOT ? " <span class='overtime-flag'>overtime</span>" : "") + "</td>" +
+        "<td class='num'>" + fmtHours(hrs) + "</td>" +
+        "<td></td>";
+      body.appendChild(tr);
+    });
+
+    var summaryGrid = document.getElementById("summaryGrid");
+    summaryGrid.innerHTML =
+      "<div class='stat'><div class='num'>" + fmtHours(totalHours) + "</div><div class='label'>Total hours</div></div>" +
+      "<div class='stat'><div class='num'>" + state.employees.length + "</div><div class='label'>Employees</div></div>" +
+      "<div class='stat'><div class='num'>" + overtimeCount + "</div><div class='label'>Over 40 hrs</div></div>";
+  }
+
+  // ---------- init ----------
+  document.getElementById("entryDate").valueAsDate = new Date();
+  setStatus("Not connected", "");
+})();
+</script>
+</body>
+</html>
