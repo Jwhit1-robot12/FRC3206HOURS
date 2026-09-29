@@ -221,7 +221,7 @@
   <header class="top">
     <div class="brand">
       <div class="mark">Timecard</div>
-      <div class="sub">Employee time tracking</div>
+      <div class="sub">Scouts time tracking</div>
     </div>
     <div>
       <div class="live-clock" id="liveClock">--:--:--</div>
@@ -277,13 +277,13 @@ service cloud.firestore {
   <section class="view" id="view-clock">
     <h2 class="view-title">Punch clock</h2>
     <div class="roster-grid" id="clockGrid"></div>
-    <div class="empty-note" id="clockEmpty" style="display:none;">No employees yet. Add someone in the Roster tab.</div>
+    <div class="empty-note" id="clockEmpty" style="display:none;">No s yet. Add someone in the Roster tab.</div>
   </section>
 
   <!-- ROSTER -->
   <section class="view" id="view-roster">
     <h2 class="view-title">Roster</h2>
-    <form class="add-form" id="addEmployeeForm">
+    <form class="add-form" id="addScoutsForm">
       <div class="field">
         <label for="empName">Name</label>
         <input type="text" id="empName" placeholder="Jane Diaz" required>
@@ -292,7 +292,7 @@ service cloud.firestore {
         <label for="empRole">Role</label>
         <input type="text" id="empRole" placeholder="Cashier">
       </div>
-      <button type="submit" class="btn">Add employee</button>
+      <button type="submit" class="btn">Add Scouts</button>
     </form>
     <div class="table-wrap">
       <table>
@@ -300,7 +300,7 @@ service cloud.firestore {
         <tbody id="rosterBody"></tbody>
       </table>
     </div>
-    <div class="empty-note" id="rosterEmpty" style="display:none;">Your roster is empty. Add your first employee above.</div>
+    <div class="empty-note" id="rosterEmpty" style="display:none;">Your roster is empty. Add your first Scouts above.</div>
   </section>
 
   <!-- TIMESHEETS -->
@@ -308,8 +308,8 @@ service cloud.firestore {
     <h2 class="view-title">Timesheets</h2>
     <div class="ts-controls">
       <div class="field" style="min-width:180px;">
-        <label for="tsEmployee">Employee</label>
-        <select id="tsEmployee"></select>
+        <label for="tsScouts">Scouts</label>
+        <select id="tsScouts"></select>
       </div>
       <div class="week-nav">
         <button id="weekPrev" aria-label="Previous week">‹</button>
@@ -347,11 +347,11 @@ service cloud.firestore {
     <div class="summary-grid" id="summaryGrid"></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Employee</th><th class="num">Hours</th><th></th></tr></thead>
+        <thead><tr><th>Scouts</th><th class="num">Hours</th><th></th></tr></thead>
         <tbody id="reportBody"></tbody>
       </table>
     </div>
-    <div class="empty-note" id="reportEmpty" style="display:none;">Add employees and time entries to see a report.</div>
+    <div class="empty-note" id="reportEmpty" style="display:none;">Add Scoutss and time entries to see a report.</div>
   </section>
 
   <footer class="note">Data lives in the Firestore database of the Firebase project you connect above — enter the same project's config on every device to see the same roster and timesheets everywhere.</footer>
@@ -362,10 +362,10 @@ service cloud.firestore {
   "use strict";
 
   var CONFIG_KEY = "timecard.firebaseConfig";
-  var state = { employees: [], entries: [], sessions: {} };
-  // employees: [{id,name,role}]
-  // entries: [{id,employeeId,date,inTime,outTime}]
-  // sessions: { employeeId: startMs }
+  var state = { Scoutss: [], entries: [], sessions: {} };
+  // Scoutss: [{id,name,role}]
+  // entries: [{id,ScoutsId,date,inTime,outTime}]
+  // sessions: { ScoutsId: startMs }
 
   var db = null, auth = null, connected = false;
   var unsubEmp = null, unsubEntries = null, unsubSessions = null;
@@ -536,7 +536,7 @@ service cloud.firestore {
     document.getElementById("connChange").style.display = "none";
     setStatus("Not connected", "");
     document.getElementById("setupMsg").textContent = "";
-    state = { employees: [], entries: [], sessions: {} };
+    state = { Scoutss: [], entries: [], sessions: {} };
     goToTab("setup");
   });
 
@@ -550,11 +550,11 @@ service cloud.firestore {
   // ============ FIRESTORE SYNC ============
   function subscribeAll(){
     unsubscribeAll();
-    unsubEmp = db.collection("employees").onSnapshot(function(snap){
-      state.employees = [];
-      snap.forEach(function(doc){ state.employees.push(Object.assign({id: doc.id}, doc.data())); });
-      state.employees.sort(function(a,b){ return (a.name||"").localeCompare(b.name||""); });
-      renderRoster(); renderClock(); populateEmployeeSelect(); renderTimesheet(); renderReport();
+    unsubEmp = db.collection("Scoutss").onSnapshot(function(snap){
+      state.Scoutss = [];
+      snap.forEach(function(doc){ state.Scoutss.push(Object.assign({id: doc.id}, doc.data())); });
+      state.Scoutss.sort(function(a,b){ return (a.name||"").localeCompare(b.name||""); });
+      renderRoster(); renderClock(); populateScoutsSelect(); renderTimesheet(); renderReport();
     }, function(err){ handleSyncError(err); });
 
     unsubEntries = db.collection("entries").onSnapshot(function(snap){
@@ -581,21 +581,21 @@ service cloud.firestore {
   }
 
   // ---------- ROSTER ----------
-  document.getElementById("addEmployeeForm").addEventListener("submit", function(e){
+  document.getElementById("addScoutsForm").addEventListener("submit", function(e){
     e.preventDefault();
     if(!connected) return;
     var name = document.getElementById("empName").value.trim();
     if(!name) return;
     var role = document.getElementById("empRole").value.trim();
-    db.collection("employees").add({ name: name, role: role }).catch(handleSyncError);
+    db.collection("Scoutss").add({ name: name, role: role }).catch(handleSyncError);
     this.reset();
   });
 
-  function removeEmployee(id){
+  function removeScouts(id){
     if(!connected) return;
-    db.collection("employees").doc(id).delete().catch(handleSyncError);
+    db.collection("Scoutss").doc(id).delete().catch(handleSyncError);
     db.collection("sessions").doc(id).delete().catch(function(){});
-    state.entries.filter(function(e){ return e.employeeId === id; }).forEach(function(e){
+    state.entries.filter(function(e){ return e.ScoutsId === id; }).forEach(function(e){
       db.collection("entries").doc(e.id).delete().catch(function(){});
     });
   }
@@ -603,8 +603,8 @@ service cloud.firestore {
   function renderRoster(){
     var body = document.getElementById("rosterBody");
     body.innerHTML = "";
-    document.getElementById("rosterEmpty").style.display = state.employees.length ? "none" : "block";
-    state.employees.forEach(function(emp){
+    document.getElementById("rosterEmpty").style.display = state.Scoutss.length ? "none" : "block";
+    state.Scoutss.forEach(function(emp){
       var tr = document.createElement("tr");
       tr.innerHTML =
         "<td>" + escapeHtml(emp.name) + "</td>" +
@@ -614,7 +614,7 @@ service cloud.firestore {
       var delBtn = document.createElement("button");
       delBtn.className = "link-btn";
       delBtn.textContent = "Remove";
-      delBtn.addEventListener("click", function(){ removeEmployee(emp.id); });
+      delBtn.addEventListener("click", function(){ removeScouts(emp.id); });
       actionsTd.appendChild(delBtn);
       body.appendChild(tr);
     });
@@ -624,8 +624,8 @@ service cloud.firestore {
   function renderClock(){
     var grid = document.getElementById("clockGrid");
     grid.innerHTML = "";
-    document.getElementById("clockEmpty").style.display = state.employees.length ? "none" : "block";
-    state.employees.forEach(function(emp){
+    document.getElementById("clockEmpty").style.display = state.Scoutss.length ? "none" : "block";
+    state.Scoutss.forEach(function(emp){
       var isIn = !!state.sessions[emp.id];
       var card = document.createElement("div");
       card.className = "punch-card";
@@ -648,7 +648,7 @@ service cloud.firestore {
       var endDate = new Date();
       var startDate = new Date(startMs);
       db.collection("entries").add({
-        employeeId: empId,
+        ScoutsId: empId,
         date: toDateStr(startDate),
         inTime: pad(startDate.getHours()) + ":" + pad(startDate.getMinutes()),
         outTime: pad(endDate.getHours()) + ":" + pad(endDate.getMinutes())
@@ -672,40 +672,40 @@ service cloud.firestore {
   setInterval(tickElapsed, 1000);
 
   // ---------- TIMESHEETS ----------
-  function populateEmployeeSelect(){
-    var sel = document.getElementById("tsEmployee");
+  function populateScoutsSelect(){
+    var sel = document.getElementById("tsScouts");
     var prev = sel.value;
     sel.innerHTML = "";
-    if(!state.employees.length){
+    if(!state.Scoutss.length){
       var opt = document.createElement("option");
-      opt.textContent = "No employees yet";
+      opt.textContent = "No Scoutss yet";
       opt.value = "";
       sel.appendChild(opt);
       return;
     }
-    state.employees.forEach(function(emp){
+    state.Scoutss.forEach(function(emp){
       var opt = document.createElement("option");
       opt.value = emp.id;
       opt.textContent = emp.name;
       sel.appendChild(opt);
     });
-    if(prev && state.employees.some(function(e){return e.id===prev;})) sel.value = prev;
+    if(prev && state.Scoutss.some(function(e){return e.id===prev;})) sel.value = prev;
   }
 
-  document.getElementById("tsEmployee").addEventListener("change", renderTimesheet);
+  document.getElementById("tsScouts").addEventListener("change", renderTimesheet);
   document.getElementById("weekPrev").addEventListener("click", function(){ tsWeekStart = addDays(tsWeekStart,-7); renderTimesheet(); });
   document.getElementById("weekNext").addEventListener("click", function(){ tsWeekStart = addDays(tsWeekStart,7); renderTimesheet(); });
 
   document.getElementById("addEntryForm").addEventListener("submit", function(e){
     e.preventDefault();
     if(!connected) return;
-    var empId = document.getElementById("tsEmployee").value;
+    var empId = document.getElementById("tsScouts").value;
     if(!empId) return;
     var date = document.getElementById("entryDate").value;
     var inTime = document.getElementById("entryIn").value;
     var outTime = document.getElementById("entryOut").value;
     if(!date || !inTime || !outTime) return;
-    db.collection("entries").add({ employeeId: empId, date: date, inTime: inTime, outTime: outTime }).catch(handleSyncError);
+    db.collection("entries").add({ ScoutsId: empId, date: date, inTime: inTime, outTime: outTime }).catch(handleSyncError);
     this.reset();
   });
 
@@ -715,14 +715,14 @@ service cloud.firestore {
   }
 
   function renderTimesheet(){
-    populateEmployeeSelect();
+    populateScoutsSelect();
     document.getElementById("weekLabel").textContent = fmtRange(tsWeekStart);
-    var empId = document.getElementById("tsEmployee").value;
+    var empId = document.getElementById("tsScouts").value;
     var weekEnd = addDays(tsWeekStart, 7);
     var body = document.getElementById("entriesBody");
     body.innerHTML = "";
     var rows = state.entries.filter(function(e){
-      if(e.employeeId !== empId) return false;
+      if(e.ScoutsId !== empId) return false;
       var d = new Date(e.date + "T00:00:00");
       return d >= tsWeekStart && d < weekEnd;
     }).sort(function(a,b){ return a.date.localeCompare(b.date); });
@@ -758,13 +758,13 @@ service cloud.firestore {
     var weekEnd = addDays(reportWeekStart, 7);
     var body = document.getElementById("reportBody");
     body.innerHTML = "";
-    document.getElementById("reportEmpty").style.display = state.employees.length ? "none" : "block";
+    document.getElementById("reportEmpty").style.display = state.Scoutss.length ? "none" : "block";
 
     var totalHours = 0, overtimeCount = 0;
 
-    state.employees.forEach(function(emp){
+    state.Scoutss.forEach(function(emp){
       var entries = state.entries.filter(function(e){
-        if(e.employeeId !== emp.id) return false;
+        if(e.ScoutsId !== emp.id) return false;
         var d = new Date(e.date + "T00:00:00");
         return d >= reportWeekStart && d < weekEnd;
       });
@@ -784,7 +784,7 @@ service cloud.firestore {
     var summaryGrid = document.getElementById("summaryGrid");
     summaryGrid.innerHTML =
       "<div class='stat'><div class='num'>" + fmtHours(totalHours) + "</div><div class='label'>Total hours</div></div>" +
-      "<div class='stat'><div class='num'>" + state.employees.length + "</div><div class='label'>Employees</div></div>" +
+      "<div class='stat'><div class='num'>" + state.Scoutss.length + "</div><div class='label'>Scoutss</div></div>" +
       "<div class='stat'><div class='num'>" + overtimeCount + "</div><div class='label'>Over 40 hrs</div></div>";
   }
 
